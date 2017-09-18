@@ -1,0 +1,6 @@
+" NERDTree
+map <C-t> :NERDTreeToggle<CR>
+
+" Relative Line Numbers
+set relativenumber
+au BufReadPost * set relativenumber
