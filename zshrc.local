@@ -30,6 +30,10 @@ export NVM_DIR=~/.nvm
 source $(brew --prefix nvm)/nvm.sh
 
 # Python virtualenvwrapper
-source /usr/local/bin/virtualenvwrapper.sh
+# source /usr/local/bin/virtualenvwrapper.sh
 
+# rbenv
 export PATH="$HOME/.rbenv/shims:$PATH"
+
+# postgres
+export PATH="/usr/local/opt/postgresql@9.5/bin:$PATH"
