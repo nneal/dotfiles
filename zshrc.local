@@ -32,3 +32,4 @@ source $(brew --prefix nvm)/nvm.sh
 # Python virtualenvwrapper
 source /usr/local/bin/virtualenvwrapper.sh
 
+export PATH="$HOME/.rbenv/shims:$PATH"
