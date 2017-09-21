@@ -12,7 +12,6 @@ export PATH="/Applications/Postgres.app/Contents/Versions/latest/bin:$PATH"
 # Recommended by brew doctor
 export PATH="/usr/local/bin:/usr/local/sbin:$PATH"
 
-alias ga='git add .'
 alias gaa='git add -A'
 alias gap='git add -p'
 alias gb= 'git branch'
@@ -24,6 +23,7 @@ alias gpu='git pull'
 alias gst='git status'
 
 alias cdr='cd ~/repos'
+alias cdg='cd ~/repos/gov_congress'
 
 # NVM
 export NVM_DIR=~/.nvm
