@@ -1,71 +1,48 @@
-# load our own completion functions
-fpath=(~/.zsh/completion $fpath)
-
-# completion
-autoload -U compinit
-compinit
-
+# load custom executable functions
 for function in ~/.zsh/functions/*; do
   source $function
 done
 
-# automatically enter directories without cd
-setopt auto_cd
+# extra files in ~/.zsh/configs/pre , ~/.zsh/configs , and ~/.zsh/configs/post
+# these are loaded first, second, and third, respectively.
+_load_settings() {
+  _dir="$1"
+  if [ -d "$_dir" ]; then
+    if [ -d "$_dir/pre" ]; then
+      for config in "$_dir"/pre/**/*(N-.); do
+        if [ ${config:e} = "zwc" ] ; then continue ; fi
+        . $config
+      done
+    fi
 
-# use vim as the visual editor
-export VISUAL=vim
-export EDITOR=$VISUAL
+    for config in "$_dir"/**/*(N-.); do
+      case "$config" in
+        "$_dir"/pre/*)
+          :
+          ;;
+        "$_dir"/post/*)
+          :
+          ;;
+        *)
+          if [[ -f $config && ${config:e} != "zwc" ]]; then
+            . $config
+          fi
+          ;;
+      esac
+    done
 
-# vi mode
-bindkey -v
-bindkey "^F" vi-cmd-mode
-bindkey jj vi-cmd-mode
-
-# use incremental search
-bindkey "^R" history-incremental-search-backward
-
-# add some readline keys back
-bindkey "^A" beginning-of-line
-bindkey "^E" end-of-line
-
-# handy keybindings
-bindkey "^P" history-search-backward
-bindkey "^Y" accept-and-hold
-bindkey "^N" insert-last-word
-bindkey -s "^T" "^[Isudo ^[A" # "t" for "toughguy"
-
-# expand functions in the prompt
-setopt prompt_subst
-
-# prompt
-export PS1='[${SSH_CONNECTION+"%n@%m:"}%~] '
-
-# ignore duplicate history entries
-setopt histignoredups
-
-# keep TONS of history
-export HISTSIZE=4096
-
-# look for ey config in project dirs
-export EYRC=./.eyrc
-
-# automatically pushd
-setopt auto_pushd
-export dirstacksize=5
-
-# awesome cd movements from zshkit
-setopt AUTOCD
-setopt AUTOPUSHD PUSHDMINUS PUSHDSILENT PUSHDTOHOME
-setopt cdablevars
-
-# Try to correct command line spelling
-setopt CORRECT CORRECT_ALL
-
-# Enable extended globbing
-setopt EXTENDED_GLOB
-
-# aliases
-[[ -f ~/.aliases ]] && source ~/.aliases
+    if [ -d "$_dir/post" ]; then
+      for config in "$_dir"/post/**/*(N-.); do
+        if [ ${config:e} = "zwc" ] ; then continue ; fi
+        . $config
+      done
+    fi
+  fi
+}
+_load_settings "$HOME/.zsh/configs"
 
 # Local config
 [[ -f ~/.zshrc.local ]] && source ~/.zshrc.local
+
+# aliases
+[[ -f ~/.aliases ]] && source ~/.aliases
