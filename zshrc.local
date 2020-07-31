@@ -7,8 +7,6 @@ eval "$(hub alias -s)"
 # Stop correcting commands
 DISABLE_CORRECTION="true"
 
-# Postgres.App
-export PATH="/Applications/Postgres.app/Contents/Versions/latest/bin:$PATH"
 # Recommended by brew doctor
 export PATH="/usr/local/bin:/usr/local/sbin:$PATH"
 
