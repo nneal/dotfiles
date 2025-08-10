@@ -23,14 +23,31 @@ alias gst='git status'
 alias cdr='cd ~/repos'
 alias cdg='cd ~/repos/gov_congress'
 
-# NVM
-export NVM_DIR=~/.nvm
-source $(brew --prefix nvm)/nvm.sh
-
-# Below is recommended when installing nvm
+# NVM - Load nvm and set up completion
 export NVM_DIR="$HOME/.nvm"
-[ -s "/usr/local/opt/nvm/nvm.sh" ] && . "/usr/local/opt/nvm/nvm.sh"  # This loads nvm
-[ -s "/usr/local/opt/nvm/etc/bash_completion.d/nvm" ] && . "/usr/local/opt/nvm/etc/bash_completion.d/nvm"  # This loads nvm bash_completion
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
+# Automatically use the Node version specified in .nvmrc if it exists
+autoload -U add-zsh-hook
+load-nvmrc() {
+  local node_version="$(nvm version)"
+  local nvmrc_path="$(nvm_find_nvmrc)"
+
+  if [ -n "$nvmrc_path" ]; then
+    local nvmrc_node_version=$(nvm version "$(cat "${nvmrc_path}")")
+
+    if [ "$nvmrc_node_version" = "N/A" ]; then
+      nvm install >/dev/null 2>&1
+    elif [ "$nvmrc_node_version" != "$node_version" ]; then
+      nvm use >/dev/null 2>&1
+    fi
+  elif [ "$node_version" != "$(nvm version default)" ]; then
+    nvm use default >/dev/null 2>&1
+  fi
+}
+add-zsh-hook chpwd load-nvmrc
+load-nvmrc
 
 # Python virtualenvwrapper
 # source /usr/local/bin/virtualenvwrapper.sh
@@ -42,10 +59,7 @@ export PATH="$HOME/.rbenv/shims:$PATH"
 export PATH="/usr/local/opt/postgresql@9.5/bin:$PATH"
 export PATH="$(yarn global bin):$PATH"
 
-# automatically use nvm
-export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion" # This loads nvm bash_completion
+
 
 # direnv
 eval "$(direnv hook zsh)"
