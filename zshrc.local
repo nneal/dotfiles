@@ -16,10 +16,24 @@ if [ -f /opt/homebrew/bin/brew ]; then
 
   # Set HOMEBREW_PREFIX so scripts know which Homebrew is active
   export HOMEBREW_PREFIX="/opt/homebrew"
+
+  # Remove Homebrew's node from PATH to let NVM manage Node versions
+  # Remove specific node installation paths, but keep /opt/homebrew/bin for other tools
+  # NVM will add its node paths which will take precedence
+  export PATH=$(echo "$PATH" | tr ':' '\n' | \
+    grep -v "^/opt/homebrew/opt/node" | \
+    grep -v "^/opt/homebrew/Cellar/node" | \
+    tr '\n' ':' | sed 's/:$//;s/::/:/g')
 elif [ -f /usr/local/bin/brew ]; then
   # Fallback to Intel Homebrew if ARM version not available
   export PATH="/usr/local/bin:/usr/local/sbin:$PATH"
   export HOMEBREW_PREFIX="/usr/local"
+
+  # Remove Intel Homebrew's node from PATH to let NVM manage Node versions
+  export PATH=$(echo "$PATH" | tr ':' '\n' | \
+    grep -v "^/usr/local/opt/node" | \
+    grep -v "^/usr/local/Cellar/node" | \
+    tr '\n' ':' | sed 's/:$//;s/::/:/g')
 fi
 
 # Alias hub commands to git
@@ -41,31 +55,123 @@ alias gst='git status'
 alias cdr='cd ~/repos'
 alias cdg='cd ~/repos/gov_congress'
 
-# NVM - Load nvm and set up completion
+# NVM - Load nvm and set up completion (ARM Homebrew)
 export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+if [ -s "/opt/homebrew/opt/nvm/nvm.sh" ]; then
+  \. "/opt/homebrew/opt/nvm/nvm.sh"  # This loads nvm
+  
+  # Function to ensure NVM's node takes precedence over Homebrew's node
+  ensure_nvm_precedence() {
+    if [ -n "${NVM_BIN:-}" ] && [ -d "${NVM_BIN}" ]; then
+      # Remove NVM_BIN from PATH first (if it exists), then prepend it
+      local filtered_path=""
+      local homebrew_bin=""
+      local usr_local_bin=""
+      
+      for path_entry in $(echo "$PATH" | tr ':' ' '); do
+        # Skip NVM_BIN - we'll add it at the front
+        if [ "$path_entry" = "${NVM_BIN}" ]; then
+          continue
+        elif [ "$path_entry" = "/opt/homebrew/bin" ]; then
+          homebrew_bin="$path_entry"
+          continue  # Add it later, after NVM
+        elif [ "$path_entry" = "/usr/local/bin" ]; then
+          usr_local_bin="$path_entry"
+          continue  # Add it later, after NVM
+        else
+          filtered_path="${filtered_path:+$filtered_path:}$path_entry"
+        fi
+      done
+      
+      # Rebuild PATH: NVM_BIN first, then filtered paths, then homebrew bins at the end
+      export PATH="${NVM_BIN}${filtered_path:+:$filtered_path}${homebrew_bin:+:$homebrew_bin}${usr_local_bin:+:$usr_local_bin}"
+    fi
+  }
+  
+  if command -v nvm >/dev/null 2>&1; then
+    # Don't call ensure_nvm_precedence here - wait until after a version is activated
+  fi
+fi
+[ -s "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm" ] && \. "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm"  # This loads nvm bash_completion
 
 # Automatically use the Node version specified in .nvmrc if it exists
 autoload -U add-zsh-hook
 load-nvmrc() {
-  local node_version="$(nvm version)"
-  local nvmrc_path="$(nvm_find_nvmrc)"
+  # Only run if nvm is available
+  if ! command -v nvm >/dev/null 2>&1; then
+    return
+  fi
+  
+  local node_version="$(nvm version 2>/dev/null)"
+  local nvmrc_path="$(nvm_find_nvmrc 2>/dev/null)"
 
   if [ -n "$nvmrc_path" ]; then
-    local nvmrc_node_version=$(nvm version "$(cat "${nvmrc_path}")")
+    local nvmrc_version="$(cat "${nvmrc_path}" | tr -d '[:space:]')"
+    local nvmrc_node_version=$(nvm version "$nvmrc_version" 2>/dev/null)
 
     if [ "$nvmrc_node_version" = "N/A" ]; then
-      nvm install >/dev/null 2>&1
-    elif [ "$nvmrc_node_version" != "$node_version" ]; then
-      nvm use >/dev/null 2>&1
+      nvm install "$nvmrc_version" >/dev/null 2>&1
     fi
-  elif [ "$node_version" != "$(nvm version default)" ]; then
-    nvm use default >/dev/null 2>&1
+    # Always use the version from .nvmrc if it exists
+    if [ "$nvmrc_node_version" != "$node_version" ] || [ "$node_version" = "system" ] || [ "$node_version" = "none" ]; then
+      nvm use "$nvmrc_version" >/dev/null 2>&1
+    fi
+  elif [ "$node_version" = "system" ] || [ -z "$node_version" ] || [ "$node_version" = "none" ]; then
+    # If using system or no version, switch to default NVM version
+    local default_version=$(nvm version default 2>/dev/null)
+    if [ -n "$default_version" ] && [ "$default_version" != "N/A" ] && [ "$default_version" != "system" ] && [ "$default_version" != "none" ]; then
+      nvm use default >/dev/null 2>&1
+    fi
+  fi
+  
+  # Always ensure NVM precedence after any version switch
+  # Wait a moment for NVM_BIN to be set by nvm use, then reorder PATH
+  if [ -n "${NVM_BIN:-}" ] && [ -d "${NVM_BIN}" ]; then
+    ensure_nvm_precedence 2>/dev/null || true
+  else
+    # If NVM_BIN isn't set yet, try getting it from current node version
+    local current_node=$(nvm current 2>/dev/null)
+    if [ -n "$current_node" ] && [ "$current_node" != "system" ] && [ "$current_node" != "none" ]; then
+      export NVM_BIN="${NVM_DIR}/versions/node/${current_node}/bin"
+      ensure_nvm_precedence 2>/dev/null || true
+    fi
   fi
 }
+
+# Wrapper for load-nvmrc that ensures PATH is correct
+ensure_nvm_active() {
+  # Check if we're using system node when we should be using NVM
+  if command -v nvm >/dev/null 2>&1; then
+    local current=$(nvm current 2>/dev/null)
+    if [ "$current" = "system" ] || [ "$current" = "none" ]; then
+      # Force switch from system to NVM version
+      load-nvmrc
+    elif [ -n "${NVM_BIN:-}" ] && [ -d "${NVM_BIN}" ]; then
+      # Ensure PATH is correct even if NVM_BIN is set
+      local node_path=$(which node 2>/dev/null)
+      if [ -n "$node_path" ] && [[ "$node_path" != "${NVM_BIN}"* ]]; then
+        ensure_nvm_precedence 2>/dev/null || true
+      fi
+    fi
+  fi
+}
+
 add-zsh-hook chpwd load-nvmrc
+# Run on precmd but only if needed (debounced)
+precmd_nvm_check() {
+  # Only check if we detect we're on system node
+  local current=$(nvm current 2>/dev/null 2>&1)
+  if [ "$current" = "system" ] || [ "$current" = "none" ]; then
+    ensure_nvm_active
+  fi
+}
+add-zsh-hook precmd precmd_nvm_check
 load-nvmrc
+
+# Override cd to ensure NVM is checked after directory change
+cd() {
+  builtin cd "$@" && load-nvmrc
+}
 
 # Python virtualenvwrapper
 # source /usr/local/bin/virtualenvwrapper.sh
