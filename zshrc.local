@@ -1,14 +1,32 @@
-# load rbenv
-eval "$(rbenv init -)"
+# ARM Homebrew (Apple Silicon) - prioritize over Intel Homebrew
+# MUST be loaded first so that tools installed via Homebrew are available
+if [ -f /opt/homebrew/bin/brew ]; then
+  # Setup ARM Homebrew first (adds /opt/homebrew paths at the front)
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+
+  # Ensure `brew` command always uses ARM Homebrew (for new installs)
+  # All `brew install` commands will now install to ARM Homebrew by default
+  brew() {
+    /opt/homebrew/bin/brew "$@"
+  }
+
+  # Add Intel Homebrew paths AFTER ARM paths so ARM takes precedence
+  # Intel paths are kept as fallback for any remaining Intel-only packages
+  export PATH="$PATH:/usr/local/bin:/usr/local/sbin"
+
+  # Set HOMEBREW_PREFIX so scripts know which Homebrew is active
+  export HOMEBREW_PREFIX="/opt/homebrew"
+elif [ -f /usr/local/bin/brew ]; then
+  # Fallback to Intel Homebrew if ARM version not available
+  export PATH="/usr/local/bin:/usr/local/sbin:$PATH"
+  export HOMEBREW_PREFIX="/usr/local"
+fi
 
 # Alias hub commands to git
-eval "$(hub alias -s)"
+eval "$(hub alias -s)" 2>/dev/null || true
 
 # Stop correcting commands
 DISABLE_CORRECTION="true"
-
-# Recommended by brew doctor
-export PATH="/usr/local/bin:/usr/local/sbin:$PATH"
 
 alias gaa='git add -A'
 alias gap='git add -p'
@@ -52,18 +70,19 @@ load-nvmrc
 # Python virtualenvwrapper
 # source /usr/local/bin/virtualenvwrapper.sh
 
-# rbenv
-export PATH="$HOME/.rbenv/shims:$PATH"
-
 # postgres
 export PATH="/usr/local/opt/postgresql@9.5/bin:$PATH"
-export PATH="$(yarn global bin):$PATH"
 
+# yarn global bin (only if yarn is available)
+if command -v yarn >/dev/null 2>&1; then
+  export PATH="$(yarn global bin):$PATH"
+fi
 
-
-# direnv
-eval "$(direnv hook zsh)"
-export DIRENV_LOG_FORMAT=""
+# direnv (only if direnv is available)
+if command -v direnv >/dev/null 2>&1; then
+  eval "$(direnv hook zsh)"
+  export DIRENV_LOG_FORMAT=""
+fi
 
 # alias for heroku command line in specific project
 if [ "$(pwd)" = "/Users/nk/repos/botanico-data-tools-backend" ]; then
